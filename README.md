@@ -1,117 +1,174 @@
-# 🕳️ WebSSHole – Tunnel Out Through a Web Terminal
+# 🕳️ WebSSHole
 
-<p align="center">
-  <img src="assets/demo.gif" alt="Browsing free internet from a locked-down network" width="700"/>
-</p>
+> Turn any **web‑based SSH terminal** into a **V2Ray super‑tunnel**.
 
-**You're behind a corporate firewall that blocks *everything* except one single domain: a web-based SSH terminal.  
-No HTTP, no NPM, no PyPI. How do you work?**  
+You’re stuck behind a firewall that only allows one domain: a web SSH client.  
+With **WebSSHole**, you can:
 
-`webssh-hole` turns that solitary allowed page into a full SOCKS5 proxy — without installing anything on the target server, opening extra ports, or tripping network alarms. Your traffic simply looks like someone typing commands in a browser window.
-
----
-
-## 🔥 One Command to Freedom
-
-pip install webssh-hole
-webssh-hole --url https://ssh.corp.lockdown.com --proxy 1080
-
-Set your browser’s SOCKS proxy to `127.0.0.1:1080` and suddenly... you’re browsing the outside world.
+- Establish a **full V2Ray (VMess) tunnel** through that single allowed entry point.
+- Get a **local SOCKS5 proxy** (via V2Ray) that tunnels all your traffic.
+- **Automatically deploy** the tunnel components on the remote server.
+- **Zero configuration** – just answer a few questions.
 
 ---
 
-## 🤔 How It Works (In Plain English)
+## 🔥 How It Works
 
-1. **Automated Login**: The tool opens a headless browser, navigates to your web SSH page, and logs in securely (env vars or prompt).
-2. **In-Session Tunnel Creation**: On the remote machine, it runs `ssh -D 9999 localhost` (or `chisel`, or `socat`), opening a SOCKS endpoint inside the server.
-3. **WebSocket Bridge**: It hooks into the web terminal’s existing WebSocket — the same one that carries your keystrokes — and multiplexes an additional data channel for proxy traffic.
-4. **Local SOCKS Server**: A local listener receives your browser’s requests, encodes them as special payloads through the WebSocket, and the remote server’s SOCKS endpoint forwards them to the internet.
+1. **Connects** to the web SSH as a normal user would.
+2. **Downloads** a standalone V2Ray binary onto the remote machine.
+3. **Starts** a V2Ray server (VMess) on `127.0.0.1:10000`.
+4. **Injects** a tiny Python relay that bridges the remote V2Ray port to the existing terminal’s `stdin/stdout`.
+5. **Takes over** the WebSocket and switches from terminal mode to tunnel mode.
+6. **Spawns** a local TCP listener on your machine that connects to the WebSocket tunnel.
+7. **Provides** a ready‑to‑use V2Ray client config for you.
 
-Net result: you and your apps use `localhost:1080` as proxy, and all traffic rides the one allowed HTTPS connection, invisible to network monitors.
+The entire tunnel is wrapped in **base64‑encoded lines**, so it works with **any** web SSH backend (JSON‑based, raw‑text, even old‑school GateOne).
 
 ---
 
-## 🚀 Quick Try (45 Seconds)
+## ⚙️ Installation
 
-We’ve included a fully sandboxed example with Docker — no real corporate firewall needed.
+### Requirements
+- Python 3.7+
+- pip
+
+### Setup
+```bash
+git clone https://github.com/yourusername/WebSSHole.git
+cd WebSSHole
+pip install -r requirements.txt
+
+---
+
+## 🚀 Usage
+
+Run the interactive wizard:
 
 bash
-git clone https://github.com/you/webssh-hole.git
-cd webssh-hole
-docker compose up -d
+python3 websshole.py
 
-This spins up a mock firewall that only allows `http://ssh.local`, and a web SSH client (Guacamole/Wetty). Then:
+Answer the prompts:
+
+
+🕳️  WebSSHole – V2Ray Super‑Tunnel Setup
+═══════════════════════════════════════════
+
+Web SSH URL (e.g. https://ssh.parspack.net/): https://ssh.parspack.net/
+SSH Host: my-vps.example.com
+SSH Port [22]: 22
+SSH Username: root
+SSH Password: ********
+
+V2Ray settings (press Enter for defaults):
+Local listen port for V2Ray [10808]: 10808
+VMess UUID [auto-generated]: 
+
+After a few seconds, you’ll see:
+
+
+[+] WebSocket connected
+[+] Shell ready
+[*] Trying to deploy V2Ray...
+[+] V2Ray binary uploaded
+[*] Starting V2Ray server...
+[+] V2AY_STARTED
+[*] Injecting relay script...
+[+] RELAY_RUNNING
+[+] Switching WebSocket to tunnel mode...
+[+] Local forwarder listening on 127.0.0.1:10808
+
+---
+
+## 🛸 Using the Tunnel
+
+WebSSHole now acts as a transparent bridge.  
+To use it, you need a **local V2Ray client** (the same binary you deployed remotely).  
+Download V2Ray or Xray for your OS and run it with the following client config:
+
+json
+{
+  "log": {"loglevel": "warning"},
+  "inbounds": [{
+"port": 1080,
+"listen": "127.0.0.1",
+"protocol": "socks",
+"settings": {"udp": true}
+  }],
+  "outbounds": [{
+"protocol": "vmess",
+"settings": {
+"vnext": [{
+"address": "127.0.0.1",
+"port": 10808,
+"users": [{"id": "YOUR-UUID", "alterId": 0}]
+}]
+},
+"streamSettings": {"network": "tcp"}
+  }]
+}
+
+Replace `YOUR-UUID` with the UUID printed during the wizard (or the one you provided).
+
+Then start your local V2Ray:
 
 bash
-# Install webssh-hole locally
-pip install -e .
-webssh-hole --url http://ssh.local --username test --password test --proxy 1080
+./v2ray run -c client_config.json
 
-Browse to any blocked site via `socks5://127.0.0.1:1080`. 🎉
-
----
-
-## 🧱 Supported Web SSH Clients
-
-| Platform        | Status      |
-| --------------- | ----------- |
-| Apache Guacamole | ✅ Full     |
-| Wetty           | ✅ Full     |
-| GateOne         | 🚧 Beta     |
-| Shellinabox     | 🧪 Alpha    |
-| Custom WebSocket| 🧩 Extensible via `--ws-type` |
-
-If your client isn’t listed, open an issue — we love weird edge cases.
+Now you have a **SOCKS5 proxy** at `127.0.0.1:1080`.  
+Point your browser, apps, or even use `redsocks` / `tun2socks` for full system VPN.
 
 ---
 
-## ⚠️ When to Use This (and When Not To)
+## 🧩 Fallback Mode
 
-✅ **Good use**:  
-- You’re a developer, pentester, or researcher in a restrictive environment.  
-- You have legitimate access to the web SSH and need to clone repos, fetch packages, or use APIs.  
-- You’re demonstrating a security concept with explicit permission.
-
-❌ **Bad use**:  
-- Bypassing firewalls without authorization — that’s unethical and likely illegal.  
-- Doing anything your mother would shake her head at.
+If the remote machine **cannot download V2Ray** (e.g., no `wget`/`curl` or `noexec` filesystem),  
+WebSSHole automatically falls back to **SSH dynamic forwarding** (`ssh -D`) – a lightweight SOCKS5 proxy.  
+(Coming in v1.1)
 
 ---
 
-## 🤝 Contributing
+## 🧠 Advanced: Transparent System Proxy
 
-Pull requests are pure joy. If you’d like to add support for a new web SSH client, see our [CONTRIBUTING.md](CONTRIBUTING.md) for the WebSocket protocol mapping.  
+Combine with:
 
-## 📜 License
+- [**Tun2socks**](https://github.com/xjasonlyu/tun2socks) – create a virtual network interface that routes all traffic through the SOCKS proxy.
+- [**redsocks**](https://github.com/darkk/redsocks) – redirect TCP connections to SOCKS transparently.
 
-MIT — because freedom should be copyable.
+Example for Linux:
 
----
-
-<p align="center">
-  <strong>Built by devs, for devs, against walls.</strong><br>
-  <sub>Star us if you’ve ever had to code in a box.</sub>
-</p>
-
+bash
+sudo tun2socks -device tun0 -proxy socks5://127.0.0.1:1080
+# then set routes / default gateway
 
 ---
 
-## 💡 Extra README Ingredients for Virality
+## 📌 Supported Web SSH Servers
 
-- **Demo GIF**: I'll storyboard it for you: Start with a browser trying to reach `github.com` → Connection refused → Then run one terminal command → Same browser now loads GitHub as usual, with a little "Proxied via WebSSHole" badge in the corner.
-- **Star History Graph**: Insert a dynamic star history using [star-history.com](https://star-history.com) once the repo gets going.
-- **Badges**: CI (tests passing), PyPI version, license, stars, downloads.
-
----
-
-## 🗣️ The "Elevator Pitch" for Social Media
-
-When you share on Twitter/Reddit/HN, lead with this:
-
-> “My company’s firewall only allows one website: a web-based SSH terminal.  
-> I wrote a tool that turns that single page into a full internet tunnel.  
-> One command, no VPN, no open ports. Meet WebSSHole 🕳️”
+- **ssh.parspack.net**
+- **Shellngn / GateOne**
+- **ttyd** (with minor tweaks)
+- **webssh2**
+- Any service that provides a raw terminal in the browser.
 
 ---
 
-Alright, that’s the blueprint. Do you like **WebSSHole** or want another name? We can adjust the README in seconds. Then we'll jump into the script architecture together. Shoot me your thoughts!
+## ⚠️ Disclaimer
+
+This tool is intended for **legal penetration testing**, privacy protection, and network research.  
+You are responsible for complying with all applicable laws and terms of service.
+
+---
+
+## 🌟 Star This Project
+
+If this tool helps you escape restrictive networks, give it a ⭐ on GitHub!  
+It’s the only way I know I’m not trapped alone in the tunnel.
+
+
+---
+
+**This is the complete, reborn project.**  
+V2Ray‑first, automatic setup, base64‑tunnel proof, zero-config wizard.
+
+Run `python3 websshole.py` and watch the magic happen.  
+If any web SSH gets in the way, the base64 wrapper will slip through like liquid.
