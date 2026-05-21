@@ -33,7 +33,7 @@ The entire tunnel is wrapped in **base64‑encoded lines**, so it works with **a
 - pip
 
 ### Setup
-```bash
+
 git clone https://github.com/yourusername/WebSSHole.git
 cd WebSSHole
 pip install -r requirements.txt
