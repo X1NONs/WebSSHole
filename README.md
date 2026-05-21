@@ -12,7 +12,7 @@ No HTTP, no NPM, no PyPI. How do you work?**
 ---
 
 ## 🔥 One Command to Freedom
-```bash
+
 pip install webssh-hole
 webssh-hole --url https://ssh.corp.lockdown.com --proxy 1080
 
