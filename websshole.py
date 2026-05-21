@@ -76,7 +76,7 @@ def wizard():
     print("═══════════════════════════════════════════\n")
     cfg = TunnelConfig()
     cfg.webssh_url = input("Web SSH URL (e.g. https://ssh.parspack.net/): ").strip()
-    cfg.host = input("SSH Host: ").strip()
+    cfg.host = input("SSH Host / IP : ").strip()
     cfg.port = int(input("SSH Port [22]: ") or "22")
     cfg.username = input("SSH Username: ").strip()
     cfg.password = input("SSH Password: ").strip()
